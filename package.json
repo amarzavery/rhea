@@ -28,5 +28,6 @@
         "uglify": "uglifyjs --source-map --output dist/rhea.min.js dist/rhea.js"
     },
     "keywords": ["amqp","messaging"],
-    "main" : "./lib/container.js"
+    "main" : "./lib/container.js",
+    "types": "./index.d.ts"
 }
