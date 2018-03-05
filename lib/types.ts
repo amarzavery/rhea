@@ -39,6 +39,48 @@ interface BufferOps {
   write: (buffer: Buffer, value: any, offset: number) => void;
 }
 
+enum TypeNames {
+  Null = "Null",
+  Boolean = "Boolean",
+  True = "True",
+  False = "False",
+  Ubyte = "Ubyte",
+  Ushort = "Ushort",
+  Uint = "Uint",
+  SmallUint = "SmallUint",
+  Uint0 = "Uint0",
+  Ulong = "Ulong",
+  SmallUlong = "SmallUlong",
+  Ulong0 = "Ulong0",
+  Byte = "Byte",
+  Short = "Short",
+  Int = "Int",
+  SmallInt = "SmallInt",
+  Long = "Long",
+  SmallLong = "SmallLong",
+  Float = "Float",
+  Double = "Double",
+  Decimal32 = "Decimal32",
+  Decimal64 = "Decimal64",
+  Decimal128 = "Decimal128",
+  CharUTF32 = "CharUTF32",
+  Timestamp = "Timestamp",
+  Uuid = "Uuid",
+  Vbin8 = "Vbin8",
+  Vbin32 = "Vbin32",
+  Str8 = "Str8",
+  Str32 = "Str32",
+  Sym8 = "Sym8",
+  Sym32 = "Sym32",
+  List0 = "List0",
+  List8 = "List8",
+  List32 = "List32",
+  Map8 = "Map8",
+  Map32 = "Map32",
+  Array8 = "Array8",
+  Array32 = "Array32"
+}
+
 class Typed {
   type: TypeDesc;
   value: any;
@@ -186,420 +228,689 @@ class TypeDesc {
   }
 }
 
-let types: any = { 'by_code': {} };
-Object.defineProperty(types, 'MAX_UINT', { value: 4294967295, writable: false, configurable: false });
-Object.defineProperty(types, 'MAX_USHORT', { value: 65535, writable: false, configurable: false });
-
-types.is_ulong = function (o: Typed): boolean {
-  return is_one_of(o, [types.Ulong, types.Ulong0, types.SmallUlong]);
-}
-types.is_string = function (o: Typed): boolean {
-  return is_one_of(o, [types.Str8, types.Str32]);
-}
-types.is_symbol = function (o: Typed): boolean {
-  return is_one_of(o, [types.Sym8, types.Sym32]);
-}
-types.is_list = function (o: Typed): boolean {
-  return is_one_of(o, [types.List0, types.List8, types.List32]);
-}
-types.is_map = function (o: Typed) {
-  return is_one_of(o, [types.Map8, types.Map32]);
-}
-
-types.wrap_boolean = function (v: any): Typed {
-  return v ? types.True() : types.False();
-}
-types.wrap_ulong = function (l: Buffer | number | Number) {
-  if (Buffer.isBuffer(l)) {
-    if (buffer_zero(l, 8, false)) return types.Ulong0();
-    return buffer_zero(l, 7, false) ? types.SmallUlong(l[7]) : types.Ulong(l);
-  } else {
-    if (l === 0) return types.Ulong0();
-    else return l > 255 ? types.Ulong(l) : types.SmallUlong(l);
-  }
-}
-types.wrap_uint = function (l: number): Typed {
-  if (l === 0) return types.Uint0();
-  else return l > 255 ? types.Uint(l) : types.SmallUint(l);
-}
-types.wrap_ushort = function (l): Typed {
-  return types.Ushort(l);
-}
-types.wrap_ubyte = function (l): Typed {
-  return types.Ubyte(l);
-}
-types.wrap_long = function (l: Buffer | number): Typed {
-  if (Buffer.isBuffer(l)) {
-    let negFlag = (l[0] & 0x80) !== 0;
-    if (buffer_zero(l, 7, negFlag) && (l[7] & 0x80) === (negFlag ? 0x80 : 0)) {
-      return types.SmallLong(negFlag ? -((l[7] ^ 0xff) + 1) : l[7]);
-    }
-    return types.Long(l);
-  } else {
-    return l > 127 || l < -128 ? types.Long(l) : types.SmallLong(l);
-  }
-};
-types.wrap_int = function (l: number): Typed {
-  return l > 127 || l < -128 ? types.Int(l) : types.SmallInt(l);
-}
-types.wrap_short = function (l): Typed {
-  return types.Short(l);
-}
-types.wrap_byte = function (l): Typed {
-  return types.Byte(l);
-}
-types.wrap_float = function (l): Typed {
-  return types.Float(l);
-}
-types.wrap_double = function (l): Typed {
-  return types.Double(l);
-}
-types.wrap_timestamp = function (l): Typed {
-  return types.Timestamp(l);
-}
-types.wrap_char = function (v): Typed {
-  return types.CharUTF32(v);
-}
-types.wrap_uuid = function (v): Typed {
-  return types.Uuid(v);
-}
-types.wrap_binary = function (s): Typed {
-  return s.length > 255 ? types.Vbin32(s) : types.Vbin8(s);
-}
-types.wrap_string = function (s): Typed {
-  return s.length > 255 ? types.Str32(s) : types.Str8(s);
-}
-types.wrap_symbol = function (s): Typed {
-  return s.length > 255 ? types.Sym32(s) : types.Sym8(s);
-}
-types.wrap_list = function (l): Typed {
-  if (l.length === 0) return types.List0();
-  let items = l.map(types.wrap);
-  return types.List32(items);
-}
-types.wrap_map = function (m: object, key_wrapper?: Function): Typed {
-  let items: Typed[] = [];
-  for (let k in m) {
-    items.push(key_wrapper ? key_wrapper(k) : types.wrap(k));
-    items.push(types.wrap(m[k]));
-  }
-  return types.Map32(items);
-}
-types.wrap_symbolic_map = function (m: object): Typed {
-  return types.wrap_map(m, types.wrap_symbol);
-}
-types.wrap_array = function (l: any, code: number, descriptors): Typed {
-  if (code) {
-    return types.Array32(l, code, descriptors);
-  } else {
-    console.trace('An array must specify a type for its elements');
-    throw new errors.TypeError('An array must specify a type for its elements');
-  }
-}
-types.wrap = function (o: any): Typed {
-  let t = typeof o;
-  if (t === 'string') {
-    return types.wrap_string(o);
-  } else if (t === 'boolean') {
-    return o ? types.True() : types.False();
-  } else if (t === 'number' || o instanceof Number) {
-    if (isNaN(o)) {
-      throw new errors.TypeError('Cannot wrap NaN! ' + o);
-    } else if (Math.floor(o) - o !== 0) {
-      return types.Double(o);
-    } else if (o > 0) {
-      if (o < MAX_UINT) {
-        return types.wrap_uint(o);
-      } else {
-        return types.wrap_ulong(o);
-      }
-    } else {
-      if (o > MIN_INT) {
-        return types.wrap_int(o);
-      } else {
-        return types.wrap_long(o);
-      }
-    }
-  } else if (o instanceof Date) {
-    return types.wrap_timestamp(o.getTime());
-  } else if (o instanceof Typed) {
-    return o;
-  } else if (o instanceof Buffer) {
-    return types.wrap_binary(o);
-  } else if (t === 'undefined' || o === null) {
-    return types.Null();
-  } else if (Array.isArray(o)) {
-    return types.wrap_list(o);
-  } else {
-    return types.wrap_map(o);
-  }
-}
-
-types.wrap_described = function (value: any, descriptor: string | number | Number) {
-  let result = types.wrap(value);
-  if (descriptor) {
-    if (typeof descriptor === 'string') {
-      result = types.described(types.wrap_string(descriptor), result);
-    } else if (typeof descriptor === 'number' || descriptor instanceof Number) {
-      result = types.described(types.wrap_ulong((descriptor as number | Number)), result);
-    }
-  }
-  return result;
-}
-
-types.wrap_message_id = function (o) {
-  let t = typeof o;
-  if (t === 'string') {
-    return types.wrap_string(o);
-  } else if (t === 'number' || o instanceof Number) {
-    return types.wrap_ulong(o);
-  } else if (Buffer.isBuffer(o)) {
-    return types.wrap_uuid(o);
-  } else {
-    //TODO handle uuids
-    throw new errors.TypeError('invalid message id:' + o);
-  }
-}
-
-// TODO: not sure what is the type of descriptor and o over here and whether they are required or optional
-types.described_nc = function (descriptor: any[] | any, o: any) {
-  if (descriptor.length) {
-    o.descriptor = descriptor.shift();
-    return types.described(descriptor, o);
-  } else {
-    o.descriptor = descriptor;
-    return o;
-  }
-}
-types.described = types.described_nc;
-
-types.unwrap_map_simple = function (o) {
-  return mapify(o.value.map(function (i) { return types.unwrap(i, true); }));
-}
-
-types.unwrap = function (o, leave_described?: boolean) {
-  if (o instanceof Typed) {
-    if (o.descriptor) {
-      let c = by_descriptor[o.descriptor.value];
-      if (c) {
-        return new c(o.value);
-      } else if (leave_described) {
-        return o;
-      }
-    }
-    let u = types.unwrap(o.value, true);
-    return types.is_map(o) ? mapify(u) : u;
-  } else if (Array.isArray(o)) {
-    return o.map(function (i) { return types.unwrap(i, true); });
-  } else {
-    return o;
-  }
-}
-
-function buffer_uint8_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readUInt8(offset); },
-    'write': function (buffer, value, offset) { buffer.writeUInt8(value, offset); }
-  };
-}
-
-function buffer_uint16be_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readUInt16BE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeUInt16BE(value, offset); }
-  };
-}
-
-function buffer_uint32be_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readUInt32BE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeUInt32BE(value, offset); }
-  };
-}
-
-function buffer_int8_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readInt8(offset); },
-    'write': function (buffer, value, offset) { buffer.writeInt8(value, offset); }
-  };
-}
-
-function buffer_int16be_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readInt16BE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeInt16BE(value, offset); }
-  };
-}
-
-function buffer_int32be_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readInt32BE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeInt32BE(value, offset); }
-  };
-}
-
-function buffer_floatbe_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readFloatBE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeFloatBE(value, offset); }
-  };
-}
-
-function buffer_doublebe_ops(): BufferOps {
-  return {
-    'read': function (buffer, offset) { return buffer.readDoubleBE(offset); },
-    'write': function (buffer, value, offset) { buffer.writeDoubleBE(value, offset); }
-  };
-}
-
-function write_ulong(buffer: Buffer, value: any, offset: number): void {
-  if ((typeof value) === 'number' || value instanceof Number) {
-    let hi = Math.floor(value / MAX_UINT);
-    let lo = value % MAX_UINT;
-    buffer.writeUInt32BE(hi, offset);
-    buffer.writeUInt32BE(lo, offset + 4);
-  } else {
-    value.copy(buffer, offset);
-  }
-}
-
-function read_ulong(buffer: Buffer, offset: number): number | Buffer {
-  let hi = buffer.readUInt32BE(offset);
-  let lo = buffer.readUInt32BE(offset + 4);
-  if (hi < 2097153) {
-    return hi * MAX_UINT + lo;
-  } else {
-    return buffer.slice(offset, offset + 8);
-  }
-}
-
-function write_long(buffer: Buffer, value: any, offset: number) {
-  if ((typeof value) === 'number' || value instanceof Number) {
-    let abs = Math.abs(value);
-    let hi = Math.floor(abs / MAX_UINT);
-    let lo = abs % MAX_UINT;
-    buffer.writeInt32BE(hi, offset);
-    buffer.writeUInt32BE(lo, offset + 4);
-    if (value < 0) {
-      let carry = 1;
-      for (let i = 0; i < 8; i++) {
-        let index = offset + (7 - i);
-        let v = (buffer[index] ^ 0xFF) + carry;
-        buffer[index] = v & 0xFF;
-        carry = v >> 8;
-      }
-    }
-  } else {
-    value.copy(buffer, offset);
-  }
-}
-
-function read_long(buffer: Buffer, offset: number): number | Buffer {
-  const hi = buffer.readInt32BE(offset);
-  const lo = buffer.readUInt32BE(offset + 4);
-  if (hi < 2097153 && hi > -2097153) {
-    return hi * MAX_UINT + lo;
-  } else {
-    return buffer.slice(offset, offset + 8);
-  }
-}
-
-function define_type(name: string, typecode: number, annotations?: object, empty_value?: any): void {
-  let t = new TypeDesc(name, typecode, annotations, empty_value);
+function define_type(obj: types, name: string, typecode: number, annotations?: object, empty_value?: any) {
+  var t = new TypeDesc(name, typecode, annotations, empty_value);
   t.create.typecode = t.typecode;//hack
-  types.by_code[t.typecode] = t;
-  types[name] = t.create;
+  obj.by_code[t.typecode] = t;
+  obj[name] = t.create;
 }
 
-define_type('Null', 0x40, undefined, null);
-define_type('Boolean', 0x56, buffer_uint8_ops());
-define_type('True', 0x41, undefined, true);
-define_type('False', 0x42, undefined, false);
-define_type('Ubyte', 0x50, buffer_uint8_ops());
-define_type('Ushort', 0x60, buffer_uint16be_ops());
-define_type('Uint', 0x70, buffer_uint32be_ops());
-define_type('SmallUint', 0x52, buffer_uint8_ops());
-define_type('Uint0', 0x43, undefined, 0);
-define_type('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
-define_type('SmallUlong', 0x53, buffer_uint8_ops());
-define_type('Ulong0', 0x44, undefined, 0);
-define_type('Byte', 0x51, buffer_int8_ops());
-define_type('Short', 0x61, buffer_int16be_ops());
-define_type('Int', 0x71, buffer_int32be_ops());
-define_type('SmallInt', 0x54, buffer_int8_ops());
-define_type('Long', 0x81, { 'write': write_long, 'read': read_long });
-define_type('SmallLong', 0x55, buffer_int8_ops());
-define_type('Float', 0x72, buffer_floatbe_ops());
-define_type('Double', 0x82, buffer_doublebe_ops());
-define_type('Decimal32', 0x74);
-define_type('Decimal64', 0x84);
-define_type('Decimal128', 0x94);
-define_type('CharUTF32', 0x73, buffer_uint32be_ops());
-define_type('Timestamp', 0x83, { 'write': write_long, 'read': read_long });//TODO: convert to/from Date
-define_type('Uuid', 0x98);//TODO: convert to/from stringified form?
-define_type('Vbin8', 0xa0);
-define_type('Vbin32', 0xb0);
-define_type('Str8', 0xa1, { 'encoding': 'utf8' });
-define_type('Str32', 0xb1, { 'encoding': 'utf8' });
-define_type('Sym8', 0xa3, { 'encoding': 'ascii' });
-define_type('Sym32', 0xb3, { 'encoding': 'ascii' });
-define_type('List0', 0x45, undefined, []);
-define_type('List8', 0xc0);
-define_type('List32', 0xd0);
-define_type('Map8', 0xc1);
-define_type('Map32', 0xd1);
-define_type('Array8', 0xe0);
-define_type('Array32', 0xf0);
+class types {
+  by_code: any;
+  MAX_UINT: any;
+  MAX_USHORT: any;
+  Null: any;
+  Boolean: any;
+  True: any;
+  False: any;
+  Ubyte: any;
+  Ushort: any;
+  Uint: any;
+  SmallUint: any;
+  Uint0: any;
+  Ulong: any;
+  SmallUlong: any;
+  Ulong0: any;
+  Byte: any;
+  Short: any;
+  Int: any;
+  SmallInt: any;
+  Long: any;
+  SmallLong: any;
+  Float: any;
+  Double: any;
+  Decimal32: any;
+  Decimal64: any;
+  Decimal128: any;
+  CharUTF32: any;
+  Timestamp: any;
+  Uuid: any;
+  Vbin8: any;
+  Vbin32: any;
+  Str8: any;
+  Str32: any;
+  Sym8: any;
+  Sym32: any;
+  List0: any;
+  List8: any;
+  List32: any;
+  Map8: any;
+  Map32: any;
+  Array8: any;
+  Array32: any;
+  // is_ulong: (o: Typed) => boolean;
+  // is_string: (o: Typed) => boolean;
+  // is_symbol: (o: Typed) => boolean;
+  // is_list: (o: Typed) => boolean;
+  // is_map: (o: Typed) => boolean;
+  wrap_boolean: any;
+  wrap_ulong: any;
+  wrap_uint: any;
+  wrap_ushort: any;
+  wrap_ubyte: any;
+  wrap_long: any;
+  wrap_int: any;
+  wrap_short: any;
+  wrap_byte: any;
+  wrap_float: any;
+  wrap_double: any;
+  wrap_timestamp: any;
+  wrap_char: any;
+  wrap_uuid: any;
+  wrap_binary: any;
+  wrap_string: any;
+  wrap_symbol: any;
+  wrap_list: any;
+  wrap_map: any;
+  wrap_symbolic_map: any;
+  wrap_array: any;
+  wrap: any;
+  wrap_described: any;
+  wrap_message_id: any;
+  unwrap_map_simple: any;
+  unwrap: any;
+  described_nc: any;
+  described: any;
+  Reader: any;
+  Writer: any;
+  define_composite: any;
+  wrap_error: any;
+  constructor() {
+    this.MAX_UINT = MAX_UINT;
+    this.MAX_USHORT = 65535;
 
-function is_one_of(o: Typed, typelist: TypeDesc[]): boolean {
-  for (let i = 0; i < typelist.length; i++) {
-    if (o.type.typecode === typelist[i].typecode) return true;
-  }
-  return false;
-}
-function buffer_zero(b: Buffer, len: number, neg: boolean): boolean {
-  for (let i = 0; i < len && i < b.length; i++) {
-    if (b[i] !== (neg ? 0xff : 0)) return false;
-  }
-  return true;
-}
+    // this.Null = function () {
+    //   let t = new TypeDesc('Null', 0x40, undefined, null);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
 
+    // this.Boolean = function (value: any) {
+    //   let t = new TypeDesc('Boolean', 0x56, buffer_uint8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
 
-/**
- * Converts the list of keys and values that comprise an AMQP encoded
- * map into a proper javascript map/object.
- */
-function mapify(elements) {
-  let result = {};
-  for (let i = 0; i + 1 < elements.length;) {
-    result[elements[i++]] = elements[i++];
-  }
-  return result;
-}
+    // this.True = function () {
+    //   let t = new TypeDesc('True', 0x41, undefined, true);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
+    // this.False = function () {
+    //   let t = new TypeDesc('False', 0x42, undefined, false);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
 
-let by_descriptor = {};
+    // this.Ubyte = function (value: any) {
+    //   let t = new TypeDesc('Ubyte', 0x50, buffer_uint8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
 
-/*
-types.described = function (descriptor, typedvalue) {
-    let o = Object.create(typedvalue);
-    if (descriptor.length) {
+    // this.Ushort = function (value: any) {
+    //   let t = new TypeDesc('Ushort', 0x60, buffer_uint16be_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Uint = function (value: any) {
+    //   let t = new TypeDesc('Uint', 0x70, buffer_uint32be_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.SmallUint = function (value: any) {
+    //   let t = new TypeDesc('SmallUint', 0x52, buffer_uint8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Uint0 = function () {
+    //   let t = new TypeDesc('Uint0', 0x43, undefined, 0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
+
+    // this.Ulong = function (value: any) {
+    //   let t = new TypeDesc('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.SmallUlong = function (value: any) {
+    //   let t = new TypeDesc('SmallUlong', 0x53, buffer_uint8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Ulong0 = function () {
+    //   let t = new TypeDesc('Ulong0', 0x44, undefined, 0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
+
+    // this.Byte = function (value: any) {
+    //   let t = new TypeDesc('Byte', 0x51, buffer_int8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+    // this.Short = function (value: any) {
+    //   let t = new TypeDesc('Short', 0x61, buffer_int16be_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Int = function (value: any) {
+    //   let t = new TypeDesc('Int', 0x71, buffer_int32be_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.SmallInt = function (value: any) {
+    //   let t = new TypeDesc('SmallInt', 0x54, buffer_int8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Long = function (value: any) {
+    //   let t = new TypeDesc('Long', 0x81, { 'write': write_long, 'read': read_long });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.SmallLong = function (value: any) {
+    //   let t = new TypeDesc('SmallLong', 0x55, buffer_int8_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Float = function (value: any) {
+    //   let t = new TypeDesc('Float', 0x72, buffer_floatbe_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Double = function (value: any) {
+    //   let t = new TypeDesc('Double', 0x82, buffer_doublebe_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+    // this.Decimal32 = function (value: any) {
+    //   let t = new TypeDesc('Decimal32', 0x74);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+    // this.Decimal64 = function (value: any) {
+    //   let t = new TypeDesc('Decimal64', 0x84);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Decimal128 = function (value: any) {
+    //   let t = new TypeDesc('Decimal128', 0x94);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.CharUTF32 = function (value: any) {
+    //   let t = new TypeDesc('CharUTF32', 0x73, buffer_uint32be_ops());
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Timestamp = function (value: any) {
+    //   let t = new TypeDesc('Timestamp', 0x83, { 'write': write_long, 'read': read_long });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Uuid = function (value: any) {
+    //   let t = new TypeDesc('Uuid', 0x98);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Vbin8 = function (value: any) {
+    //   let t = new TypeDesc('Vbin8', 0xa0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Vbin32 = function (value: any) {
+    //   let t = new TypeDesc('Vbin32', 0xb0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Str8 = function (value: any) {
+    //   let t = new TypeDesc('Str8', 0xa1, { 'encoding': 'utf8' });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Str32 = function (value: any) {
+    //   let t = new TypeDesc('Str32', 0xb1, { 'encoding': 'utf8' });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Sym8 = function (value: any) {
+    //   let t = new TypeDesc('Sym8', 0xa3, { 'encoding': 'ascii' });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Sym32 = function (value: any) {
+    //   let t = new TypeDesc('Sym32', 0xb3, { 'encoding': 'ascii' });
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.List0 = function () {
+    //   let t = new TypeDesc('List0', 0x45, undefined, []);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create();
+    // }
+    // this.List8 = function (value: any) {
+    //   let t = new TypeDesc('List8', 0xc0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+    // this.List32 = function (value: any) {
+    //   let t = new TypeDesc('List32', 0xd0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Map8 = function (value: any) {
+    //   let t = new TypeDesc('Map8', 0xc1);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Map32 = function (value: any) {
+    //   let t = new TypeDesc('Map32', 0xd1);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value);
+    // }
+
+    // this.Array8 = function (value: any, code?: number, descriptor?: any) {
+    //   let t = new TypeDesc('Array8', 0xe0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value, code, descriptor);
+    // }
+
+    // this.Array32 = function (value: any, code?: number, descriptor?: any) {
+    //   let t = new TypeDesc('Array32', 0xf0);
+    //   t.create.typecode = t.typecode;
+    //   this.by_code[t.typecode] = t;
+    //   return t.create(value, code, descriptor);
+    // }
+
+    this.by_code = {};
+
+    define_type(this, 'Null', 0x40, undefined, null);
+    define_type(this, 'Boolean', 0x56, buffer_uint8_ops());
+    define_type(this, 'True', 0x41, undefined, true);
+    define_type(this, 'False', 0x42, undefined, false);
+    define_type(this, 'Ubyte', 0x50, buffer_uint8_ops());
+    define_type(this, 'Ushort', 0x60, buffer_uint16be_ops());
+    define_type(this, 'Uint', 0x70, buffer_uint32be_ops());
+    define_type(this, 'SmallUint', 0x52, buffer_uint8_ops());
+    define_type(this, 'Uint0', 0x43, undefined, 0);
+    define_type(this, 'Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
+    define_type(this, 'SmallUlong', 0x53, buffer_uint8_ops());
+    define_type(this, 'Ulong0', 0x44, undefined, 0);
+    define_type(this, 'Byte', 0x51, buffer_int8_ops());
+    define_type(this, 'Short', 0x61, buffer_int16be_ops());
+    define_type(this, 'Int', 0x71, buffer_int32be_ops());
+    define_type(this, 'SmallInt', 0x54, buffer_int8_ops());
+    define_type(this, 'Long', 0x81, { 'write': write_long, 'read': read_long });
+    define_type(this, 'SmallLong', 0x55, buffer_int8_ops());
+    define_type(this, 'Float', 0x72, buffer_floatbe_ops());
+    define_type(this, 'Double', 0x82, buffer_doublebe_ops());
+    define_type(this, 'Decimal32', 0x74);
+    define_type(this, 'Decimal64', 0x84);
+    define_type(this, 'Decimal128', 0x94);
+    define_type(this, 'CharUTF32', 0x73, buffer_uint32be_ops());
+    define_type(this, 'Timestamp', 0x83, { 'write': write_long, 'read': read_long });//TODO: convert to/from Date
+    define_type(this, 'Uuid', 0x98);//TODO: convert to/from stringified form?
+    define_type(this, 'Vbin8', 0xa0);
+    define_type(this, 'Vbin32', 0xb0);
+    define_type(this, 'Str8', 0xa1, { 'encoding': 'utf8' });
+    define_type(this, 'Str32', 0xb1, { 'encoding': 'utf8' });
+    define_type(this, 'Sym8', 0xa3, { 'encoding': 'ascii' });
+    define_type(this, 'Sym32', 0xb3, { 'encoding': 'ascii' });
+    define_type(this, 'List0', 0x45, undefined, []);
+    define_type(this, 'List8', 0xc0);
+    define_type(this, 'List32', 0xd0);
+    define_type(this, 'Map8', 0xc1);
+    define_type(this, 'Map32', 0xd1);
+    define_type(this, 'Array8', 0xe0);
+    define_type(this, 'Array32', 0xf0);
+
+    // this.is_ulong = function (o: Typed): boolean {
+    //   return is_one_of(o, [this.Ulong, this.Ulong0, this.SmallUlong]);
+    // }
+    // this.is_string = function (o: Typed): boolean {
+    //   return is_one_of(o, [this.Str8, this.Str32]);
+    // }
+    // this.is_symbol = function (o: Typed): boolean {
+    //   return is_one_of(o, [this.Sym8, this.Sym32]);
+    // }
+    // this.is_list = function (o: Typed): boolean {
+    //   return is_one_of(o, [this.List0, this.List8, this.List32]);
+    // }
+    // this.is_map = function (o: Typed) {
+    //   return is_one_of(o, [this.Map8, this.Map32]);
+    // }
+
+    this.wrap_boolean = function (v: any): Typed {
+      return v ? this.True() : this.False();
+    }
+    this.wrap_ulong = function (l: Buffer | number | Number) {
+      if (Buffer.isBuffer(l)) {
+        if (buffer_zero(l, 8, false)) return this.Ulong0();
+        return buffer_zero(l, 7, false) ? this.SmallUlong(l[7]) : this.Ulong(l);
+      } else {
+        if (l === 0) return this.Ulong0();
+        else return l > 255 ? this.Ulong(l) : this.SmallUlong(l);
+      }
+    }
+    this.wrap_uint = function (l: number): Typed {
+      if (l === 0) return this.Uint0();
+      else return l > 255 ? this.Uint(l) : this.SmallUint(l);
+    }
+    this.wrap_ushort = function (l): Typed {
+      return this.Ushort(l);
+    }
+    this.wrap_ubyte = function (l): Typed {
+      return this.Ubyte(l);
+    }
+    this.wrap_long = function (l: Buffer | number): Typed {
+      if (Buffer.isBuffer(l)) {
+        let negFlag = (l[0] & 0x80) !== 0;
+        if (buffer_zero(l, 7, negFlag) && (l[7] & 0x80) === (negFlag ? 0x80 : 0)) {
+          return this.SmallLong(negFlag ? -((l[7] ^ 0xff) + 1) : l[7]);
+        }
+        return this.Long(l);
+      } else {
+        return l > 127 || l < -128 ? this.Long(l) : this.SmallLong(l);
+      }
+    };
+    this.wrap_int = function (l: number): Typed {
+      return l > 127 || l < -128 ? this.Int(l) : this.SmallInt(l);
+    }
+    this.wrap_short = function (l): Typed {
+      return this.Short(l);
+    }
+    this.wrap_byte = function (l): Typed {
+      return this.Byte(l);
+    }
+    this.wrap_float = function (l): Typed {
+      return this.Float(l);
+    }
+    this.wrap_double = function (l): Typed {
+      return this.Double(l);
+    }
+    this.wrap_timestamp = function (l): Typed {
+      return this.Timestamp(l);
+    }
+    this.wrap_char = function (v): Typed {
+      return this.CharUTF32(v);
+    }
+    this.wrap_uuid = function (v): Typed {
+      return this.Uuid(v);
+    }
+    this.wrap_binary = function (s): Typed {
+      return s.length > 255 ? this.Vbin32(s) : this.Vbin8(s);
+    }
+    this.wrap_string = function (s): Typed {
+      return s.length > 255 ? this.Str32(s) : this.Str8(s);
+    }
+    this.wrap_symbol = function (s): Typed {
+      return s.length > 255 ? this.Sym32(s) : this.Sym8(s);
+    }
+    this.wrap_list = function (l): Typed {
+      if (l.length === 0) return this.List0();
+      let items = l.map(this.wrap);
+      return this.List32(items);
+    }
+    this.wrap_map = function (m: object, key_wrapper?: Function): Typed {
+      let items: Typed[] = [];
+      for (let k in m) {
+        items.push(key_wrapper ? key_wrapper(k) : this.wrap(k));
+        items.push(this.wrap(m[k]));
+      }
+      return this.Map32(items);
+    }
+    this.wrap_symbolic_map = function (m: object): Typed {
+      return this.wrap_map(m, this.wrap_symbol);
+    }
+    this.wrap_array = function (l: any, code: number, descriptors): Typed {
+      if (code) {
+        return this.Array32(l, code, descriptors);
+      } else {
+        console.trace('An array must specify a type for its elements');
+        throw new errors.TypeError('An array must specify a type for its elements');
+      }
+    }
+    this.wrap = function (o: any): Typed {
+      let t = typeof o;
+      if (t === 'string') {
+        return this.wrap_string(o);
+      } else if (t === 'boolean') {
+        return o ? this.True() : this.False();
+      } else if (t === 'number' || o instanceof Number) {
+        if (isNaN(o)) {
+          throw new errors.TypeError('Cannot wrap NaN! ' + o);
+        } else if (Math.floor(o) - o !== 0) {
+          return this.Double(o);
+        } else if (o > 0) {
+          if (o < MAX_UINT) {
+            return this.wrap_uint(o);
+          } else {
+            return this.wrap_ulong(o);
+          }
+        } else {
+          if (o > MIN_INT) {
+            return this.wrap_int(o);
+          } else {
+            return this.wrap_long(o);
+          }
+        }
+      } else if (o instanceof Date) {
+        return this.wrap_timestamp(o.getTime());
+      } else if (o instanceof Typed) {
+        return o;
+      } else if (o instanceof Buffer) {
+        return this.wrap_binary(o);
+      } else if (t === 'undefined' || o === null) {
+        return this.Null();
+      } else if (Array.isArray(o)) {
+        return this.wrap_list(o);
+      } else {
+        return this.wrap_map(o);
+      }
+    }
+
+    this.wrap_described = function (value: any, descriptor: string | number | Number) {
+      let result = this.wrap(value);
+      if (descriptor) {
+        if (typeof descriptor === 'string') {
+          result = this.described(this.wrap_string(descriptor), result);
+        } else if (typeof descriptor === 'number' || descriptor instanceof Number) {
+          result = this.described(this.wrap_ulong((descriptor as number | Number)), result);
+        }
+      }
+      return result;
+    }
+
+    this.wrap_message_id = function (o) {
+      let t = typeof o;
+      if (t === 'string') {
+        return this.wrap_string(o);
+      } else if (t === 'number' || o instanceof Number) {
+        return this.wrap_ulong(o);
+      } else if (Buffer.isBuffer(o)) {
+        return this.wrap_uuid(o);
+      } else {
+        //TODO handle uuids
+        throw new errors.TypeError('invalid message id:' + o);
+      }
+    }
+
+    // TODO: not sure what is the type of descriptor and o over here and whether they are required or optional
+    this.described_nc = function (descriptor: any[] | any, o: any) {
+      if (descriptor.length) {
         o.descriptor = descriptor.shift();
-        return types.described(descriptor, o);
-    } else {
+        return this.described(descriptor, o);
+      } else {
         o.descriptor = descriptor;
         return o;
+      }
     }
-};
-*/
 
+    this.described = this.described_nc;
 
-function get_type(code: number): TypeDesc {
-  let type = types.by_code[code];
-  if (!type) {
-    throw new errors.TypeError('Unrecognised typecode: ' + hex(code));
+    this.unwrap_map_simple = function (o) {
+      return mapify(o.value.map(function (i) { return this.unwrap(i, true); }));
+    }
+
+    this.unwrap = function (o, leave_described?: boolean) {
+      if (o instanceof Typed) {
+        if (o.descriptor) {
+          let c = by_descriptor[o.descriptor.value];
+          if (c) {
+            return new c(o.value);
+          } else if (leave_described) {
+            return o;
+          }
+        }
+        let u = this.unwrap(o.value, true);
+        return this.is_map(o) ? mapify(u) : u;
+      } else if (Array.isArray(o)) {
+        return o.map(function (i) { return this.unwrap(i, true); });
+      } else {
+        return o;
+      }
+    }
+
+    // this.Reader = Reader;
+    // this.Writer = Writer;
+
+    this.define_composite = function (def) {
+      const self = this;
+      class c {
+        value: any[];
+        constructor(fields?: any[]) {
+          this.value = fields ? fields : [];
+        }
+
+        static descriptor = {
+          numeric: def.code,
+          symbolic: 'amqp:' + def.name + ':list'
+        };
+
+        dispatch(target, frame) {
+          target['on_' + def.name](frame);
+        }
+
+        static toString() {
+          return def.name + '#' + Number(def.code).toString(16);
+        }
+
+        toJSON() {
+          let o: any = {};
+          o.type = c.toString();
+          for (let f in this) {
+            if (f !== 'value' && this[f]) {
+              o[f] = this[f];
+            }
+          }
+          return o;
+        }
+
+        static create(fields) {
+          let o = new c();
+          for (let f in fields) {
+            o[f] = fields[f];
+          }
+          return o;
+        };
+
+        described() {
+          return self.described_nc(self.wrap_ulong(c.descriptor.numeric), self.wrap_list(this.value));
+        }
+      }
+      //c.prototype.descriptor = c.descriptor.numeric;
+      //c.prototype = Object.create(self.List8.prototype);
+      for (let i = 0; i < def.fields.length; i++) {
+        let f = def.fields[i];
+        Object.defineProperty(c.prototype, f.name, get_accessors(i, f));
+      }
+
+      return c;
+    }
   }
-  return type;
+
+  is_ulon(o: Typed): boolean {
+    return is_one_of(o, [this.Ulong, this.Ulong0, this.SmallUlong]);
+  }
+  is_string(o: Typed): boolean {
+    return is_one_of(o, [this.Str8, this.Str32]);
+  }
+  is_symbol(o: Typed): boolean {
+    return is_one_of(o, [this.Sym8, this.Sym32]);
+  }
+  is_list(o: Typed): boolean {
+    return is_one_of(o, [this.List0, this.List8, this.List32]);
+  }
+  is_map(o: Typed) {
+    return is_one_of(o, [this.Map8, this.Map32]);
+  }
 }
+
+let ty = new types();
 
 class Reader {
   buffer: Buffer;
@@ -645,7 +956,7 @@ class Reader {
   read(): Typed {
     let constructor = this.read_constructor();
     let value = this.read_value(get_type(constructor.typecode));
-    return constructor.descriptor ? types.described_nc(constructor.descriptor, value) : value;
+    return constructor.descriptor ? ty.described_nc(constructor.descriptor, value) : value;
   }
 
   read_constructor(): ArrayConstructor {
@@ -739,7 +1050,6 @@ class Reader {
     return this.buffer.length - this.position;
   }
 }
-types.Reader = Reader;
 
 class Writer {
   buffer: Buffer;
@@ -851,7 +1161,7 @@ class Writer {
     this.write_uint(value.length, type.width);//count field
     for (let i = 0; i < value.length; i++) {
       if (value[i] === undefined || value[i] === null) {
-        this.write(types.Null());
+        this.write(ty.Null());
       } else {
         this.write(value[i]);
       }
@@ -895,7 +1205,167 @@ class Writer {
     return this.buffer.length - this.position;
   }
 }
-types.Writer = Writer;
+
+ty.Reader = Reader;
+ty.Writer = Writer;
+
+function buffer_uint8_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readUInt8(offset); },
+    'write': function (buffer, value, offset) { buffer.writeUInt8(value, offset); }
+  };
+}
+
+function buffer_uint16be_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readUInt16BE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeUInt16BE(value, offset); }
+  };
+}
+
+function buffer_uint32be_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readUInt32BE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeUInt32BE(value, offset); }
+  };
+}
+
+function buffer_int8_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readInt8(offset); },
+    'write': function (buffer, value, offset) { buffer.writeInt8(value, offset); }
+  };
+}
+
+function buffer_int16be_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readInt16BE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeInt16BE(value, offset); }
+  };
+}
+
+function buffer_int32be_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readInt32BE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeInt32BE(value, offset); }
+  };
+}
+
+function buffer_floatbe_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readFloatBE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeFloatBE(value, offset); }
+  };
+}
+
+function buffer_doublebe_ops(): BufferOps {
+  return {
+    'read': function (buffer, offset) { return buffer.readDoubleBE(offset); },
+    'write': function (buffer, value, offset) { buffer.writeDoubleBE(value, offset); }
+  };
+}
+
+function write_ulong(buffer: Buffer, value: any, offset: number): void {
+  if ((typeof value) === 'number' || value instanceof Number) {
+    let hi = Math.floor(value / MAX_UINT);
+    let lo = value % MAX_UINT;
+    buffer.writeUInt32BE(hi, offset);
+    buffer.writeUInt32BE(lo, offset + 4);
+  } else {
+    value.copy(buffer, offset);
+  }
+}
+
+function read_ulong(buffer: Buffer, offset: number): number | Buffer {
+  let hi = buffer.readUInt32BE(offset);
+  let lo = buffer.readUInt32BE(offset + 4);
+  if (hi < 2097153) {
+    return hi * MAX_UINT + lo;
+  } else {
+    return buffer.slice(offset, offset + 8);
+  }
+}
+
+function write_long(buffer: Buffer, value: any, offset: number) {
+  if ((typeof value) === 'number' || value instanceof Number) {
+    let abs = Math.abs(value);
+    let hi = Math.floor(abs / MAX_UINT);
+    let lo = abs % MAX_UINT;
+    buffer.writeInt32BE(hi, offset);
+    buffer.writeUInt32BE(lo, offset + 4);
+    if (value < 0) {
+      let carry = 1;
+      for (let i = 0; i < 8; i++) {
+        let index = offset + (7 - i);
+        let v = (buffer[index] ^ 0xFF) + carry;
+        buffer[index] = v & 0xFF;
+        carry = v >> 8;
+      }
+    }
+  } else {
+    value.copy(buffer, offset);
+  }
+}
+
+function read_long(buffer: Buffer, offset: number): number | Buffer {
+  const hi = buffer.readInt32BE(offset);
+  const lo = buffer.readUInt32BE(offset + 4);
+  if (hi < 2097153 && hi > -2097153) {
+    return hi * MAX_UINT + lo;
+  } else {
+    return buffer.slice(offset, offset + 8);
+  }
+}
+
+function is_one_of(o: Typed, typelist: CreateTypeDesc[]): boolean {
+  for (let i = 0; i < typelist.length; i++) {
+    if (o.type.typecode === typelist[i].typecode) return true;
+  }
+  return false;
+}
+function buffer_zero(b: Buffer, len: number, neg: boolean): boolean {
+  for (let i = 0; i < len && i < b.length; i++) {
+    if (b[i] !== (neg ? 0xff : 0)) return false;
+  }
+  return true;
+}
+
+
+/**
+ * Converts the list of keys and values that comprise an AMQP encoded
+ * map into a proper javascript map/object.
+ */
+function mapify(elements) {
+  let result = {};
+  for (let i = 0; i + 1 < elements.length;) {
+    result[elements[i++]] = elements[i++];
+  }
+  return result;
+}
+
+let by_descriptor = {};
+
+/*
+types.described = function (descriptor, typedvalue) {
+    let o = Object.create(typedvalue);
+    if (descriptor.length) {
+        o.descriptor = descriptor.shift();
+        return types.described(descriptor, o);
+    } else {
+        o.descriptor = descriptor;
+        return o;
+    }
+};
+*/
+
+
+function get_type(code: number): TypeDesc {
+  let type = ty.by_code[code];
+  if (!type) {
+    throw new errors.TypeError('Unrecognised typecode: ' + hex(code));
+  }
+  return type;
+}
 
 function max(a: number, b: number): number {
   return a > b ? a : b;
@@ -904,7 +1374,7 @@ function max(a: number, b: number): number {
 
 function get_constructor(typename: string): { typecode: number } {
   if (typename === 'symbol') {
-    return { typecode: types.Sym8.typecode };
+    return { typecode: ty.Sym8.typecode };
   }
   throw new errors.TypeError('TODO: Array of type ' + typename + ' not yet supported');
 }
@@ -917,11 +1387,11 @@ function wrap_field(definition, instance): Typed {
       }
       let constructor = get_constructor(definition.type);
       // TODO: How can one provide constructor.descriptor if get_constructor only returns an object with one property typecode.
-      return types.wrap_array(instance, constructor.typecode, (constructor as any).descriptor);
+      return ty.wrap_array(instance, constructor.typecode, (constructor as any).descriptor);
     } else if (definition.type === '*') {
       return instance;
     } else {
-      let wrapper = types['wrap_' + definition.type];
+      let wrapper = ty['wrap_' + definition.type];
       if (wrapper) {
         return wrapper(instance);
       } else {
@@ -931,7 +1401,7 @@ function wrap_field(definition, instance): Typed {
   } else if (definition.mandatory) {
     throw new errors.TypeError('Field ' + definition.name + ' is mandatory');
   } else {
-    return types.Null();
+    return ty.Null();
   }
 }
 
@@ -940,58 +1410,15 @@ function get_accessors(index, field_definition) {
   if (field_definition.type === '*') {
     getter = function () { return this.value[index]; };
   } else {
-    getter = function () { return types.unwrap(this.value[index]); };
+    getter = function () { return ty.unwrap(this.value[index]); };
   }
   let setter = function (o) { this.value[index] = wrap_field(field_definition, o); };
   return { 'get': getter, 'set': setter, 'enumerable': true, 'configurable': false };
 }
 
-types.define_composite = function (def: any): any {
-  let c: any = function (fields) {
-    this.value = fields ? fields : [];
-  };
-  c.descriptor = {
-    numeric: def.code,
-    symbolic: 'amqp:' + def.name + ':list'
-  };
-  c.prototype.dispatch = function (target, frame) {
-    target['on_' + def.name](frame);
-  };
-  //c.prototype.descriptor = c.descriptor.numeric;
-  //c.prototype = Object.create(types.List8.prototype);
-  for (let i = 0; i < def.fields.length; i++) {
-    let f = def.fields[i];
-    Object.defineProperty(c.prototype, f.name, get_accessors(i, f));
-  }
-  c.toString = function () {
-    return def.name + '#' + Number(def.code).toString(16);
-  };
-  c.prototype.toJSON = function () {
-    let o: any = {};
-    o.type = c.toString();
-    for (let f in this) {
-      if (f !== 'value' && this[f]) {
-        o[f] = this[f];
-      }
-    }
-    return o;
-  };
-  c.create = function (fields) {
-    let o = new c;
-    for (let f in fields) {
-      o[f] = fields[f];
-    }
-    return o;
-  };
-  c.prototype.described = function () {
-    return types.described_nc(types.wrap_ulong(c.descriptor.numeric), types.wrap_list(this.value));
-  };
-  return c;
-};
-
 function add_type(def: any) {
-  let c: any = types.define_composite(def);
-  types['wrap_' + def.name] = function (fields) {
+  let c: any = ty.define_composite(def);
+  ty['wrap_' + def.name] = function (fields) {
     return c.create(fields).described();
   };
   by_descriptor[Number(c.descriptor.numeric).toString(10)] = c;
@@ -1008,4 +1435,6 @@ add_type({
   ]
 });
 
-module.exports = types;
+const Foo = TypeNames.Array32;
+console.log(Foo);
+export = ty;
