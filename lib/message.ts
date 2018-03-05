@@ -16,9 +16,9 @@
 'use strict';
 
 import * as log from "./log";
-import * as ty from "./types";
+import { types as TypesClass } from "./types";
 
-const types = new ty.types();
+const types = new TypesClass();
 
 let by_descriptor: any = {};
 let unwrappers: any = {};

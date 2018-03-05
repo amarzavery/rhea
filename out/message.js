@@ -15,8 +15,8 @@
  */
 'use strict';
 const log = require("./log");
-const ty = require("./types");
-const types = new ty.types();
+const types_1 = require("./types");
+const types = new types_1.types();
 let by_descriptor = {};
 let unwrappers = {};
 let wrappers = [];

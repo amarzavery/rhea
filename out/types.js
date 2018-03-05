@@ -255,12 +255,12 @@ class types {
         //   this.by_code[t.typecode] = t;
         //   return t.create();
         // }
-        // this.Ulong = function (value: any) {
-        //   let t = new TypeDesc('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
-        //   t.create.typecode = t.typecode;
-        //   this.by_code[t.typecode] = t;
-        //   return t.create(value);
-        // }
+        this.Ulong = function (value) {
+            let t = new TypeDesc('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
+            t.create.typecode = t.typecode;
+            this.by_code[t.typecode] = t;
+            return t.create(value);
+        };
         // this.SmallUlong = function (value: any) {
         //   let t = new TypeDesc('SmallUlong', 0x53, buffer_uint8_ops());
         //   t.create.typecode = t.typecode;
