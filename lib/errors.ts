@@ -13,38 +13,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
 
-var util = require('util');
-
-function ProtocolError(message) {
-    Error.call(this);
+export class ProtocolError extends Error {
+  message: string;
+  name = "ProtocolError";
+  constructor(message: string) {
+    super();
     this.message = message;
-    this.name = 'ProtocolError';
-}
-util.inherits(ProtocolError, Error);
-
-function TypeError(message) {
-    ProtocolError.call(this, message);
-    this.message = message;
-    this.name = 'TypeError';
+    this.name = "ProtocolError";
+  }
 }
 
-util.inherits(TypeError, ProtocolError);
-
-function ConnectionError(message, condition, connection) {
-    Error.call(this, message);
+export class TypeError extends ProtocolError {
+  message: string;
+  name = "TypeError";
+  constructor(message: string) {
+    super(message);
     this.message = message;
-    this.name = 'ConnectionError';
+    this.name = "TypeError";
+  }
+}
+
+export class ConnectionError extends Error {
+  message: string;
+  name = "ConnectionError";
+  description: string;
+  condition: any;
+  connection: any;
+  constructor(message: string, condition: any, connection: any) {
+    super(message);
+    this.message = message;
+    this.name = "ConnectionError";
     this.condition = condition;
     this.description = message;
     this.connection = connection;
+  }
 }
-
-util.inherits(ConnectionError, Error);
-
-module.exports = {
-    ProtocolError: ProtocolError,
-    TypeError: TypeError,
-    ConnectionError: ConnectionError
-};

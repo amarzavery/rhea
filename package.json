@@ -1,32 +1,39 @@
 {
-    "name" : "rhea",
-    "version": "0.2.10",
-    "description": "reactive AMQP 1.0 library",
-    "homepage": "http://github.com/grs/rhea",
-    "license": "Apache-2.0",
-    "repository": {
-        "type": "git",
-        "url": "http://github.com/grs/rhea"
-    },
-    "dependencies": {
-        "debug": ">=0.8.0"
-    },
-    "devDependencies": {
-        "eslint":"",
-        "mocha":"^3.0.0",
-        "browserify":"",
-        "istanbul": "",
-        "minimist":"",
-        "uglify-js":""
-    },
-    "scripts": {
-        "lint": "eslint lib/*.js",
-        "test": "mocha",
-        "coverage": "istanbul cover _mocha",
-        "browserify": "browserify -r .:rhea -o dist/rhea.js",
-        "run-examples": "mocha examples/test_examples.js",
-        "uglify": "uglifyjs --source-map --output dist/rhea.min.js dist/rhea.js"
-    },
-    "keywords": ["amqp","messaging"],
-    "main" : "./lib/container.js"
+  "name": "rhea",
+  "version": "0.2.10",
+  "description": "reactive AMQP 1.0 library",
+  "homepage": "http://github.com/grs/rhea",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/grs/rhea"
+  },
+  "dependencies": {
+    "debug": ">=0.8.0",
+    "@types/debug": "^0.0.30",
+    "@types/node": "^8.0.37"
+  },
+  "devDependencies": {
+    "eslint": "",
+    "mocha": "^3.0.0",
+    "browserify": "",
+    "istanbul": "",
+    "minimist": "",
+    "uglify-js": "",
+    "@types/mocha": "^2.2.48"
+  },
+  "scripts": {
+    "lint": "eslint lib/*.js",
+    "test": "mocha",
+    "coverage": "istanbul cover _mocha",
+    "browserify": "browserify -r .:rhea -o dist/rhea.js",
+    "run-examples": "mocha examples/test_examples.js",
+    "uglify": "uglifyjs --source-map --output dist/rhea.min.js dist/rhea.js",
+    "tsc": "tsc"
+  },
+  "keywords": [
+    "amqp",
+    "messaging"
+  ],
+  "main": "./lib/container.js"
 }

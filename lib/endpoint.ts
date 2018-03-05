@@ -13,99 +13,104 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
 
-var EndpointState = function () {
+export class EndpointState {
+  local_open: boolean = false;
+  remote_open: boolean = false;
+  open_requests: number = 0;
+  close_requests: number = 0;
+  initialised: boolean = false;
+
+  constructor() {
     this.init();
-};
+  }
 
-EndpointState.prototype.init = function () {
+  init() {
     this.local_open = false;
     this.remote_open = false;
     this.open_requests = 0;
     this.close_requests = 0;
     this.initialised = false;
-};
+  };
 
-EndpointState.prototype.open = function () {
+  open(): boolean {
     this.initialised = true;
     if (!this.local_open) {
-        this.local_open = true;
-        this.open_requests++;
-        return true;
+      this.local_open = true;
+      this.open_requests++;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
+  };
 
-EndpointState.prototype.close = function () {
+  close(): boolean {
     if (this.local_open) {
-        this.local_open = false;
-        this.close_requests++;
-        return true;
+      this.local_open = false;
+      this.close_requests++;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
+  };
 
-EndpointState.prototype.disconnected = function () {
+  disconnected(): void {
     var was_initialised = this.initialised;
     var was_open = this.local_open;
     this.init();
     this.initialised = was_initialised;
     if (was_open) {
-        this.open();
+      this.open();
     } else {
-        this.close();
+      this.close();
     }
-};
+  };
 
-EndpointState.prototype.remote_opened = function () {
+  remote_opened(): boolean {
     if (!this.remote_open) {
-        this.remote_open = true;
-        return true;
+      this.remote_open = true;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
+  };
 
-EndpointState.prototype.remote_closed = function () {
+  remote_closed(): boolean {
     if (this.remote_open) {
-        this.remote_open = false;
-        return true;
+      this.remote_open = false;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
+  };
 
-EndpointState.prototype.is_open = function () {
+  is_open(): boolean {
     return this.local_open && this.remote_open;
-};
+  };
 
-EndpointState.prototype.is_closed = function () {
+  is_closed(): boolean {
     return this.initialised && !this.local_open && !this.remote_open;
-};
+  };
 
-EndpointState.prototype.has_settled = function () {
+  has_settled(): boolean {
     return this.open_requests === 0 && this.close_requests === 0;
-};
+  };
 
-EndpointState.prototype.need_open = function () {
+  need_open(): boolean {
     if (this.open_requests > 0) {
-        this.open_requests--;
-        return true;
+      this.open_requests--;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
+  };
 
-EndpointState.prototype.need_close = function () {
+  need_close(): boolean {
     if (this.close_requests > 0) {
-        this.close_requests--;
-        return true;
+      this.close_requests--;
+      return true;
     } else {
-        return false;
+      return false;
     }
-};
-
-module.exports = EndpointState;
+  };
+}

@@ -13,16 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
+"use strict";
 
-var debug = require('debug');
+import * as debug from "debug";
 
-module.exports = {
-    'frames' : debug('rhea:frames'),
-    'raw' : debug('rhea:raw'),
-    'reconnect' : debug('rhea:reconnect'),
-    'events' : debug('rhea:events'),
-    'message' : debug('rhea:message'),
-    'flow' : debug('rhea:flow'),
-    'io' : debug('rhea:io')
-};
+export const frames = debug("rhea:frames");
+export const raw = debug("rhea:raw");
+export const reconnect = debug("rhea:reconnect");
+export const events = debug("rhea:events");
+export const message = debug("rhea:message");
+export const flow = debug("rhea:flow");
+export const io = debug("rhea:io");

@@ -24,6 +24,19 @@ const CAT_ARRAY = 4;
 const MAX_UINT = 4294967296; // 2^32
 const MIN_INT = -2147483647;
 
+export interface ICompositeType {
+  name: string;
+  code: number;
+  fields: Field[];
+}
+export interface Field {
+  name: string,
+  type: string;
+  mandatory?: boolean;
+  default_value?: any;
+  multiple?: boolean;
+}
+
 export interface ArrayConstructor {
   typecode: number;
   descriptor?: any
@@ -347,12 +360,12 @@ export class types {
     //   return t.create();
     // }
 
-    // this.Ulong = function (value: any) {
-    //   let t = new TypeDesc('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
-    //   t.create.typecode = t.typecode;
-    //   this.by_code[t.typecode] = t;
-    //   return t.create(value);
-    // }
+    this.Ulong = function (value: any) {
+      let t = new TypeDesc('Ulong', 0x80, { 'write': write_ulong, 'read': read_ulong });
+      t.create.typecode = t.typecode;
+      this.by_code[t.typecode] = t;
+      return t.create(value);
+    }
 
     // this.SmallUlong = function (value: any) {
     //   let t = new TypeDesc('SmallUlong', 0x53, buffer_uint8_ops());
@@ -802,7 +815,7 @@ export class types {
     }
   }
 
-  define_composite(def): any {
+  define_composite(def: ICompositeType): any {
     const self = this;
     class c {
       value: any[];
@@ -815,7 +828,7 @@ export class types {
         symbolic: 'amqp:' + def.name + ':list'
       };
 
-      dispatch(target, frame) {
+      dispatch(target: object, frame: any): void {
         target['on_' + def.name](frame);
       }
 
@@ -823,7 +836,7 @@ export class types {
         return def.name + '#' + Number(def.code).toString(16);
       }
 
-      toJSON() {
+      toJSON(): any {
         let o: any = {};
         o.type = c.toString();
         for (let f in this) {
@@ -834,7 +847,7 @@ export class types {
         return o;
       }
 
-      static create(fields) {
+      static create(fields): c {
         let o = new c();
         for (let f in fields) {
           o[f] = fields[f];
@@ -1371,7 +1384,7 @@ function get_accessors(index, field_definition) {
   return { 'get': getter, 'set': setter, 'enumerable': true, 'configurable': false };
 }
 
-function add_type(def: any) {
+function add_type(def: ICompositeType) {
   let c: any = types.prototype.define_composite(def);
   types.prototype['wrap_' + def.name] = function (fields) {
     return c.create(fields).described();

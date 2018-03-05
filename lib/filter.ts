@@ -13,12 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
 
-var amqp_types = require('./types.js');
+import * as types from "./types";
+const amqp_types = new types.types()
 
-module.exports = {
-    selector : function (s) {
-        return {'jms-selector':amqp_types.wrap_described(s, 0x468C00000004)};
-    }
-};
+export const basicFilter = {
+  selector: function (s) {
+    return { 'jms-selector': amqp_types.wrap_described(s, 0x468C00000004) };
+  }
+}
+
+
+export const genericFilter = {
+  selector: function (s, key) {
+    return { key: amqp_types.wrap_described(s, 0x468C00000004) };
+  }
+}
