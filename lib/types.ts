@@ -24,22 +24,22 @@ const CAT_ARRAY = 4;
 const MAX_UINT = 4294967296; // 2^32
 const MIN_INT = -2147483647;
 
-interface ArrayConstructor {
+export interface ArrayConstructor {
   typecode: number;
   descriptor?: any
 }
 
-interface CreateTypeDesc {
+export interface CreateTypeDesc {
   (value?: any, code?: any, descriptor?: any): Typed;
   typecode?: number;
 }
 
-interface BufferOps {
+export interface BufferOps {
   read: (buffer: Buffer, offset: number) => number;
   write: (buffer: Buffer, value: any, offset: number) => void;
 }
 
-enum TypeNames {
+export enum TypeNames {
   Null = "Null",
   Boolean = "Boolean",
   True = "True",
@@ -81,7 +81,7 @@ enum TypeNames {
   Array32 = "Array32"
 }
 
-class Typed {
+export class Typed {
   type: TypeDesc;
   value: any;
   array_constructor?: ArrayConstructor;
@@ -126,7 +126,7 @@ function hex(i: any): string {
   return Number(i).toString(16);
 }
 
-class TypeDesc {
+export class TypeDesc {
   name: string;
   typecode: number;
   width: number = 0;
@@ -235,10 +235,10 @@ function define_type(obj: types, name: string, typecode: number, annotations?: o
   obj[name] = t.create;
 }
 
-class types {
-  by_code: any;
-  MAX_UINT: any;
-  MAX_USHORT: any;
+export class types {
+  by_code: { [x: number]: TypeDesc };
+  MAX_UINT: number;
+  MAX_USHORT: number;
   Null: any;
   Boolean: any;
   True: any;
@@ -248,7 +248,7 @@ class types {
   Uint: any;
   SmallUint: any;
   Uint0: any;
-  Ulong: any;
+  Ulong?: Typed | CreateTypeDesc;
   SmallUlong: any;
   Ulong0: any;
   Byte: any;
@@ -278,42 +278,8 @@ class types {
   Map32: any;
   Array8: any;
   Array32: any;
-  // is_ulong: (o: Typed) => boolean;
-  // is_string: (o: Typed) => boolean;
-  // is_symbol: (o: Typed) => boolean;
-  // is_list: (o: Typed) => boolean;
-  // is_map: (o: Typed) => boolean;
-  wrap_boolean: any;
-  wrap_ulong: any;
-  wrap_uint: any;
-  wrap_ushort: any;
-  wrap_ubyte: any;
-  wrap_long: any;
-  wrap_int: any;
-  wrap_short: any;
-  wrap_byte: any;
-  wrap_float: any;
-  wrap_double: any;
-  wrap_timestamp: any;
-  wrap_char: any;
-  wrap_uuid: any;
-  wrap_binary: any;
-  wrap_string: any;
-  wrap_symbol: any;
-  wrap_list: any;
-  wrap_map: any;
-  wrap_symbolic_map: any;
-  wrap_array: any;
-  wrap: any;
-  wrap_described: any;
-  wrap_message_id: any;
-  unwrap_map_simple: any;
-  unwrap: any;
-  described_nc: any;
-  described: any;
   Reader: any;
   Writer: any;
-  define_composite: any;
   wrap_error: any;
   constructor() {
     this.MAX_UINT = MAX_UINT;
@@ -627,270 +593,6 @@ class types {
     define_type(this, 'Map32', 0xd1);
     define_type(this, 'Array8', 0xe0);
     define_type(this, 'Array32', 0xf0);
-
-    // this.is_ulong = function (o: Typed): boolean {
-    //   return is_one_of(o, [this.Ulong, this.Ulong0, this.SmallUlong]);
-    // }
-    // this.is_string = function (o: Typed): boolean {
-    //   return is_one_of(o, [this.Str8, this.Str32]);
-    // }
-    // this.is_symbol = function (o: Typed): boolean {
-    //   return is_one_of(o, [this.Sym8, this.Sym32]);
-    // }
-    // this.is_list = function (o: Typed): boolean {
-    //   return is_one_of(o, [this.List0, this.List8, this.List32]);
-    // }
-    // this.is_map = function (o: Typed) {
-    //   return is_one_of(o, [this.Map8, this.Map32]);
-    // }
-
-    this.wrap_boolean = function (v: any): Typed {
-      return v ? this.True() : this.False();
-    }
-    this.wrap_ulong = function (l: Buffer | number | Number) {
-      if (Buffer.isBuffer(l)) {
-        if (buffer_zero(l, 8, false)) return this.Ulong0();
-        return buffer_zero(l, 7, false) ? this.SmallUlong(l[7]) : this.Ulong(l);
-      } else {
-        if (l === 0) return this.Ulong0();
-        else return l > 255 ? this.Ulong(l) : this.SmallUlong(l);
-      }
-    }
-    this.wrap_uint = function (l: number): Typed {
-      if (l === 0) return this.Uint0();
-      else return l > 255 ? this.Uint(l) : this.SmallUint(l);
-    }
-    this.wrap_ushort = function (l): Typed {
-      return this.Ushort(l);
-    }
-    this.wrap_ubyte = function (l): Typed {
-      return this.Ubyte(l);
-    }
-    this.wrap_long = function (l: Buffer | number): Typed {
-      if (Buffer.isBuffer(l)) {
-        let negFlag = (l[0] & 0x80) !== 0;
-        if (buffer_zero(l, 7, negFlag) && (l[7] & 0x80) === (negFlag ? 0x80 : 0)) {
-          return this.SmallLong(negFlag ? -((l[7] ^ 0xff) + 1) : l[7]);
-        }
-        return this.Long(l);
-      } else {
-        return l > 127 || l < -128 ? this.Long(l) : this.SmallLong(l);
-      }
-    };
-    this.wrap_int = function (l: number): Typed {
-      return l > 127 || l < -128 ? this.Int(l) : this.SmallInt(l);
-    }
-    this.wrap_short = function (l): Typed {
-      return this.Short(l);
-    }
-    this.wrap_byte = function (l): Typed {
-      return this.Byte(l);
-    }
-    this.wrap_float = function (l): Typed {
-      return this.Float(l);
-    }
-    this.wrap_double = function (l): Typed {
-      return this.Double(l);
-    }
-    this.wrap_timestamp = function (l): Typed {
-      return this.Timestamp(l);
-    }
-    this.wrap_char = function (v): Typed {
-      return this.CharUTF32(v);
-    }
-    this.wrap_uuid = function (v): Typed {
-      return this.Uuid(v);
-    }
-    this.wrap_binary = function (s): Typed {
-      return s.length > 255 ? this.Vbin32(s) : this.Vbin8(s);
-    }
-    this.wrap_string = function (s): Typed {
-      return s.length > 255 ? this.Str32(s) : this.Str8(s);
-    }
-    this.wrap_symbol = function (s): Typed {
-      return s.length > 255 ? this.Sym32(s) : this.Sym8(s);
-    }
-    this.wrap_list = function (l): Typed {
-      if (l.length === 0) return this.List0();
-      let items = l.map(this.wrap);
-      return this.List32(items);
-    }
-    this.wrap_map = function (m: object, key_wrapper?: Function): Typed {
-      let items: Typed[] = [];
-      for (let k in m) {
-        items.push(key_wrapper ? key_wrapper(k) : this.wrap(k));
-        items.push(this.wrap(m[k]));
-      }
-      return this.Map32(items);
-    }
-    this.wrap_symbolic_map = function (m: object): Typed {
-      return this.wrap_map(m, this.wrap_symbol);
-    }
-    this.wrap_array = function (l: any, code: number, descriptors): Typed {
-      if (code) {
-        return this.Array32(l, code, descriptors);
-      } else {
-        console.trace('An array must specify a type for its elements');
-        throw new errors.TypeError('An array must specify a type for its elements');
-      }
-    }
-    this.wrap = function (o: any): Typed {
-      let t = typeof o;
-      if (t === 'string') {
-        return this.wrap_string(o);
-      } else if (t === 'boolean') {
-        return o ? this.True() : this.False();
-      } else if (t === 'number' || o instanceof Number) {
-        if (isNaN(o)) {
-          throw new errors.TypeError('Cannot wrap NaN! ' + o);
-        } else if (Math.floor(o) - o !== 0) {
-          return this.Double(o);
-        } else if (o > 0) {
-          if (o < MAX_UINT) {
-            return this.wrap_uint(o);
-          } else {
-            return this.wrap_ulong(o);
-          }
-        } else {
-          if (o > MIN_INT) {
-            return this.wrap_int(o);
-          } else {
-            return this.wrap_long(o);
-          }
-        }
-      } else if (o instanceof Date) {
-        return this.wrap_timestamp(o.getTime());
-      } else if (o instanceof Typed) {
-        return o;
-      } else if (o instanceof Buffer) {
-        return this.wrap_binary(o);
-      } else if (t === 'undefined' || o === null) {
-        return this.Null();
-      } else if (Array.isArray(o)) {
-        return this.wrap_list(o);
-      } else {
-        return this.wrap_map(o);
-      }
-    }
-
-    this.wrap_described = function (value: any, descriptor: string | number | Number) {
-      let result = this.wrap(value);
-      if (descriptor) {
-        if (typeof descriptor === 'string') {
-          result = this.described(this.wrap_string(descriptor), result);
-        } else if (typeof descriptor === 'number' || descriptor instanceof Number) {
-          result = this.described(this.wrap_ulong((descriptor as number | Number)), result);
-        }
-      }
-      return result;
-    }
-
-    this.wrap_message_id = function (o) {
-      let t = typeof o;
-      if (t === 'string') {
-        return this.wrap_string(o);
-      } else if (t === 'number' || o instanceof Number) {
-        return this.wrap_ulong(o);
-      } else if (Buffer.isBuffer(o)) {
-        return this.wrap_uuid(o);
-      } else {
-        //TODO handle uuids
-        throw new errors.TypeError('invalid message id:' + o);
-      }
-    }
-
-    // TODO: not sure what is the type of descriptor and o over here and whether they are required or optional
-    this.described_nc = function (descriptor: any[] | any, o: any) {
-      if (descriptor.length) {
-        o.descriptor = descriptor.shift();
-        return this.described(descriptor, o);
-      } else {
-        o.descriptor = descriptor;
-        return o;
-      }
-    }
-
-    this.described = this.described_nc;
-
-    this.unwrap_map_simple = function (o) {
-      return mapify(o.value.map(function (i) { return this.unwrap(i, true); }));
-    }
-
-    this.unwrap = function (o, leave_described?: boolean) {
-      if (o instanceof Typed) {
-        if (o.descriptor) {
-          let c = by_descriptor[o.descriptor.value];
-          if (c) {
-            return new c(o.value);
-          } else if (leave_described) {
-            return o;
-          }
-        }
-        let u = this.unwrap(o.value, true);
-        return this.is_map(o) ? mapify(u) : u;
-      } else if (Array.isArray(o)) {
-        return o.map(function (i) { return this.unwrap(i, true); });
-      } else {
-        return o;
-      }
-    }
-
-    // this.Reader = Reader;
-    // this.Writer = Writer;
-
-    this.define_composite = function (def) {
-      const self = this;
-      class c {
-        value: any[];
-        constructor(fields?: any[]) {
-          this.value = fields ? fields : [];
-        }
-
-        static descriptor = {
-          numeric: def.code,
-          symbolic: 'amqp:' + def.name + ':list'
-        };
-
-        dispatch(target, frame) {
-          target['on_' + def.name](frame);
-        }
-
-        static toString() {
-          return def.name + '#' + Number(def.code).toString(16);
-        }
-
-        toJSON() {
-          let o: any = {};
-          o.type = c.toString();
-          for (let f in this) {
-            if (f !== 'value' && this[f]) {
-              o[f] = this[f];
-            }
-          }
-          return o;
-        }
-
-        static create(fields) {
-          let o = new c();
-          for (let f in fields) {
-            o[f] = fields[f];
-          }
-          return o;
-        };
-
-        described() {
-          return self.described_nc(self.wrap_ulong(c.descriptor.numeric), self.wrap_list(this.value));
-        }
-      }
-      //c.prototype.descriptor = c.descriptor.numeric;
-      //c.prototype = Object.create(self.List8.prototype);
-      for (let i = 0; i < def.fields.length; i++) {
-        let f = def.fields[i];
-        Object.defineProperty(c.prototype, f.name, get_accessors(i, f));
-      }
-
-      return c;
-    }
   }
 
   is_ulon(o: Typed): boolean {
@@ -908,9 +610,254 @@ class types {
   is_map(o: Typed) {
     return is_one_of(o, [this.Map8, this.Map32]);
   }
+
+  wrap_boolean(v: any): Typed {
+    return v ? this.True() : this.False();
+  }
+  wrap_ulong(l: Buffer | number | Number) {
+    if (Buffer.isBuffer(l)) {
+      if (buffer_zero(l, 8, false)) return this.Ulong0();
+      return buffer_zero(l, 7, false) ? this.SmallUlong(l[7]) : (this.Ulong as CreateTypeDesc)(l);
+    } else {
+      if (l === 0) return this.Ulong0();
+      else return l > 255 ? (this.Ulong as CreateTypeDesc)(l) : this.SmallUlong(l);
+    }
+  }
+  wrap_uint(l: number): Typed {
+    if (l === 0) return this.Uint0();
+    else return l > 255 ? this.Uint(l) : this.SmallUint(l);
+  }
+  wrap_ushort(l): Typed {
+    return this.Ushort(l);
+  }
+  wrap_ubyte(l): Typed {
+    return this.Ubyte(l);
+  }
+  wrap_long(l: Buffer | number): Typed {
+    if (Buffer.isBuffer(l)) {
+      let negFlag = (l[0] & 0x80) !== 0;
+      if (buffer_zero(l, 7, negFlag) && (l[7] & 0x80) === (negFlag ? 0x80 : 0)) {
+        return this.SmallLong(negFlag ? -((l[7] ^ 0xff) + 1) : l[7]);
+      }
+      return this.Long(l);
+    } else {
+      return l > 127 || l < -128 ? this.Long(l) : this.SmallLong(l);
+    }
+  };
+  wrap_int(l: number): Typed {
+    return l > 127 || l < -128 ? this.Int(l) : this.SmallInt(l);
+  }
+  wrap_short(l): Typed {
+    return this.Short(l);
+  }
+  wrap_byte(l): Typed {
+    return this.Byte(l);
+  }
+  wrap_float(l): Typed {
+    return this.Float(l);
+  }
+  wrap_double(l): Typed {
+    return this.Double(l);
+  }
+  wrap_timestamp(l): Typed {
+    return this.Timestamp(l);
+  }
+  wrap_char(v): Typed {
+    return this.CharUTF32(v);
+  }
+  wrap_uuid(v): Typed {
+    return this.Uuid(v);
+  }
+  wrap_binary(s): Typed {
+    return s.length > 255 ? this.Vbin32(s) : this.Vbin8(s);
+  }
+  wrap_string(s): Typed {
+    return s.length > 255 ? this.Str32(s) : this.Str8(s);
+  }
+  wrap_symbol(s): Typed {
+    return s.length > 255 ? this.Sym32(s) : this.Sym8(s);
+  }
+  wrap_list(l): Typed {
+    if (l.length === 0) return this.List0();
+    let items = l.map(this.wrap);
+    return this.List32(items);
+  }
+  wrap_map(m: object, key_wrapper?: Function): Typed {
+    let items: Typed[] = [];
+    for (let k in m) {
+      items.push(key_wrapper ? key_wrapper(k) : this.wrap(k));
+      items.push(this.wrap(m[k]));
+    }
+    return this.Map32(items);
+  }
+  wrap_symbolic_map(m: object): Typed {
+    return this.wrap_map(m, this.wrap_symbol);
+  }
+  wrap_array(l: any, code: number, descriptors): Typed {
+    if (code) {
+      return this.Array32(l, code, descriptors);
+    } else {
+      console.trace('An array must specify a type for its elements');
+      throw new errors.TypeError('An array must specify a type for its elements');
+    }
+  }
+  wrap(o: any): Typed {
+    let t = typeof o;
+    if (t === 'string') {
+      return this.wrap_string(o);
+    } else if (t === 'boolean') {
+      return o ? this.True() : this.False();
+    } else if (t === 'number' || o instanceof Number) {
+      if (isNaN(o)) {
+        throw new errors.TypeError('Cannot wrap NaN! ' + o);
+      } else if (Math.floor(o) - o !== 0) {
+        return this.Double(o);
+      } else if (o > 0) {
+        if (o < MAX_UINT) {
+          return this.wrap_uint(o);
+        } else {
+          return this.wrap_ulong(o);
+        }
+      } else {
+        if (o > MIN_INT) {
+          return this.wrap_int(o);
+        } else {
+          return this.wrap_long(o);
+        }
+      }
+    } else if (o instanceof Date) {
+      return this.wrap_timestamp(o.getTime());
+    } else if (o instanceof Typed) {
+      return o;
+    } else if (o instanceof Buffer) {
+      return this.wrap_binary(o);
+    } else if (t === 'undefined' || o === null) {
+      return this.Null();
+    } else if (Array.isArray(o)) {
+      return this.wrap_list(o);
+    } else {
+      return this.wrap_map(o);
+    }
+  }
+
+  wrap_described(value: any, descriptor: string | number | Number) {
+    let result = this.wrap(value);
+    if (descriptor) {
+      if (typeof descriptor === 'string') {
+        result = this.described(this.wrap_string(descriptor), result);
+      } else if (typeof descriptor === 'number' || descriptor instanceof Number) {
+        result = this.described(this.wrap_ulong((descriptor as number | Number)), result);
+      }
+    }
+    return result;
+  }
+
+  wrap_message_id(o) {
+    let t = typeof o;
+    if (t === 'string') {
+      return this.wrap_string(o);
+    } else if (t === 'number' || o instanceof Number) {
+      return this.wrap_ulong(o);
+    } else if (Buffer.isBuffer(o)) {
+      return this.wrap_uuid(o);
+    } else {
+      //TODO handle uuids
+      throw new errors.TypeError('invalid message id:' + o);
+    }
+  }
+
+  // TODO: not sure what is the type of descriptor and o over here and whether they are required or optional
+  described_nc(descriptor: any[] | any, o: any) {
+    if (descriptor.length) {
+      o.descriptor = descriptor.shift();
+      return this.described(descriptor, o);
+    } else {
+      o.descriptor = descriptor;
+      return o;
+    }
+  }
+
+  described = this.described_nc;
+
+  unwrap_map_simple(o) {
+    return mapify(o.value.map((i) => { return this.unwrap(i, true); }));
+  }
+
+  unwrap(o, leave_described?: boolean) {
+    if (o instanceof Typed) {
+      if (o.descriptor) {
+        let c = by_descriptor[o.descriptor.value];
+        if (c) {
+          return new c(o.value);
+        } else if (leave_described) {
+          return o;
+        }
+      }
+      let u = this.unwrap(o.value, true);
+      return this.is_map(o) ? mapify(u) : u;
+    } else if (Array.isArray(o)) {
+      return o.map((i) => { return this.unwrap(i, true); });
+    } else {
+      return o;
+    }
+  }
+
+  define_composite(def): any {
+    const self = this;
+    class c {
+      value: any[];
+      constructor(fields?: any[]) {
+        this.value = fields ? fields : [];
+      }
+
+      static descriptor = {
+        numeric: def.code,
+        symbolic: 'amqp:' + def.name + ':list'
+      };
+
+      dispatch(target, frame) {
+        target['on_' + def.name](frame);
+      }
+
+      static toString() {
+        return def.name + '#' + Number(def.code).toString(16);
+      }
+
+      toJSON() {
+        let o: any = {};
+        o.type = c.toString();
+        for (let f in this) {
+          if (f !== 'value' && this[f]) {
+            o[f] = this[f];
+          }
+        }
+        return o;
+      }
+
+      static create(fields) {
+        let o = new c();
+        for (let f in fields) {
+          o[f] = fields[f];
+        }
+        return o;
+      };
+
+      described() {
+        return self.described_nc(self.wrap_ulong(c.descriptor.numeric), self.wrap_list(this.value));
+      }
+    }
+    //c.prototype.descriptor = c.descriptor.numeric;
+    //c.prototype = Object.create(self.List8.prototype);
+    for (let i = 0; i < def.fields.length; i++) {
+      let f = def.fields[i];
+      Object.defineProperty(c.prototype, f.name, get_accessors(i, f));
+    }
+
+    return c;
+  }
 }
 
-let ty = new types();
+//let ty = new types();
 
 class Reader {
   buffer: Buffer;
@@ -956,7 +903,7 @@ class Reader {
   read(): Typed {
     let constructor = this.read_constructor();
     let value = this.read_value(get_type(constructor.typecode));
-    return constructor.descriptor ? ty.described_nc(constructor.descriptor, value) : value;
+    return constructor.descriptor ? types.prototype.described_nc(constructor.descriptor, value) : value;
   }
 
   read_constructor(): ArrayConstructor {
@@ -1161,7 +1108,7 @@ class Writer {
     this.write_uint(value.length, type.width);//count field
     for (let i = 0; i < value.length; i++) {
       if (value[i] === undefined || value[i] === null) {
-        this.write(ty.Null());
+        this.write(types.prototype.Null());
       } else {
         this.write(value[i]);
       }
@@ -1206,8 +1153,16 @@ class Writer {
   }
 }
 
-ty.Reader = Reader;
-ty.Writer = Writer;
+types.prototype.Reader = Reader;
+types.prototype.Writer = Writer;
+
+// TODO: Not sure if we need this. However adding for backwards compat.
+const ty = new types();
+types.prototype.by_code = ty.by_code;
+for (let prop of Object.getOwnPropertyNames(ty)) {
+  if (!types[prop]) types[prop] = ty[prop];
+  if (!types.prototype[prop]) types.prototype[prop] = ty[prop];
+}
 
 function buffer_uint8_ops(): BufferOps {
   return {
@@ -1360,7 +1315,7 @@ types.described = function (descriptor, typedvalue) {
 
 
 function get_type(code: number): TypeDesc {
-  let type = ty.by_code[code];
+  let type = types.prototype.by_code[code];
   if (!type) {
     throw new errors.TypeError('Unrecognised typecode: ' + hex(code));
   }
@@ -1374,7 +1329,7 @@ function max(a: number, b: number): number {
 
 function get_constructor(typename: string): { typecode: number } {
   if (typename === 'symbol') {
-    return { typecode: ty.Sym8.typecode };
+    return { typecode: types.prototype.Sym8.typecode };
   }
   throw new errors.TypeError('TODO: Array of type ' + typename + ' not yet supported');
 }
@@ -1387,11 +1342,11 @@ function wrap_field(definition, instance): Typed {
       }
       let constructor = get_constructor(definition.type);
       // TODO: How can one provide constructor.descriptor if get_constructor only returns an object with one property typecode.
-      return ty.wrap_array(instance, constructor.typecode, (constructor as any).descriptor);
+      return types.prototype.wrap_array(instance, constructor.typecode, (constructor as any).descriptor);
     } else if (definition.type === '*') {
       return instance;
     } else {
-      let wrapper = ty['wrap_' + definition.type];
+      let wrapper = types.prototype['wrap_' + definition.type];
       if (wrapper) {
         return wrapper(instance);
       } else {
@@ -1401,24 +1356,24 @@ function wrap_field(definition, instance): Typed {
   } else if (definition.mandatory) {
     throw new errors.TypeError('Field ' + definition.name + ' is mandatory');
   } else {
-    return ty.Null();
+    return types.prototype.Null();
   }
 }
 
 function get_accessors(index, field_definition) {
   let getter;
   if (field_definition.type === '*') {
-    getter = function () { return this.value[index]; };
+    getter = () => { return this.value[index]; };
   } else {
-    getter = function () { return ty.unwrap(this.value[index]); };
+    getter = () => { return types.prototype.unwrap(this.value[index]); };
   }
-  let setter = function (o) { this.value[index] = wrap_field(field_definition, o); };
+  let setter = (o) => { this.value[index] = wrap_field(field_definition, o); };
   return { 'get': getter, 'set': setter, 'enumerable': true, 'configurable': false };
 }
 
 function add_type(def: any) {
-  let c: any = ty.define_composite(def);
-  ty['wrap_' + def.name] = function (fields) {
+  let c: any = types.prototype.define_composite(def);
+  types.prototype['wrap_' + def.name] = function (fields) {
     return c.create(fields).described();
   };
   by_descriptor[Number(c.descriptor.numeric).toString(10)] = c;
@@ -1434,7 +1389,3 @@ add_type({
     { name: 'info', type: 'map' }
   ]
 });
-
-const Foo = TypeNames.Array32;
-console.log(Foo);
-export = ty;
