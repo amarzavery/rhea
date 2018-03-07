@@ -58,11 +58,43 @@ describe('message content', function() {
         assert.equal(message.body.typecode, 0x75);
         assert.equal(message.body.content.toString(), 'hello world!');
     }));
+    it('sends and receives body as two data sections', transfer_test({body:amqp_message.data_sections([new Buffer('hello'), new Buffer('world!')])}, function(message) {
+        assert.equal(message.body.typecode, 0x75);
+        assert.equal(message.body.multiple, true);
+        assert.equal(message.body.content.length, 2);
+        assert.equal(message.body.content[0].toString(), 'hello');
+        assert.equal(message.body.content[1].toString(), 'world!');
+    }));
+    it('sends and receives body as multiple data sections', transfer_test({body:amqp_message.data_sections([new Buffer('farewell'), new Buffer('cruel'), new Buffer('world!')])}, function(message) {
+        assert.equal(message.body.typecode, 0x75);
+        assert.equal(message.body.multiple, true);
+        assert.equal(message.body.content.length, 3);
+        assert.equal(message.body.content[0].toString(), 'farewell');
+        assert.equal(message.body.content[1].toString(), 'cruel');
+        assert.equal(message.body.content[2].toString(), 'world!');
+    }));
     it('sends and receives body as sequence section', transfer_test({body:amqp_message.sequence_section(['hello', 1, 'world!'])}, function(message) {
         assert.equal(message.body.typecode, 0x76);
         assert.equal(message.body.content[0], 'hello');
         assert.equal(message.body.content[1], 1);
         assert.equal(message.body.content[2], 'world!');
+    }));
+    it('sends and receives body as multiple sequence sections', transfer_test({body:amqp_message.sequence_sections([['hello', 1, 'world!'], ['foo', 'bar', 1234, 5678], ['pi', 3.14]])}, function(message) {
+        assert.equal(message.body.typecode, 0x76);
+        assert.equal(message.body.multiple, true);
+        assert.equal(message.body.content.length, 3);
+        assert.equal(message.body.content[0].length, 3);
+        assert.equal(message.body.content[0][0], 'hello');
+        assert.equal(message.body.content[0][1], 1);
+        assert.equal(message.body.content[0][2], 'world!');
+        assert.equal(message.body.content[1].length, 4);
+        assert.equal(message.body.content[1][0], 'foo');
+        assert.equal(message.body.content[1][1], 'bar');
+        assert.equal(message.body.content[1][2], 1234);
+        assert.equal(message.body.content[1][3], 5678);
+        assert.equal(message.body.content[2].length, 2);
+        assert.equal(message.body.content[2][0], 'pi');
+        assert.equal(message.body.content[2][1], 3.14);
     }));
     it('sends and receives subject', transfer_test({subject:'my-subject'}, function(message) {
         assert.equal(message.subject, 'my-subject');
@@ -276,6 +308,15 @@ describe('message content', function() {
     it('message has a toString', transfer_test({message_id:'my-id', body:'hello world!'}, function(message) {
         assert.equal(message.toString(), '{"message_id":"my-id","body":"hello world!"}');
     }));
+    it('sends and receives message in custom format', function (done) {
+        var message = new Buffer('hello world!');
+        container.on('message', function(context) {
+            assert.equal(context.format, 1111);
+            assert.equal(context.message.toString(), message.toString());
+            done();
+        });
+        sender.send(message, undefined, 1111);
+    });
 });
 
 describe('acknowledgement', function() {
